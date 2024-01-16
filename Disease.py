@@ -19,6 +19,9 @@ from sklearn.metrics import accuracy_score
 import fitz
 from PIL import Image
 from sklearn.metrics import confusion_matrix
+from sklearn.cluster import DBSCAN
+from sklearn.preprocessing import StandardScaler
+
 
 for dirname, _, filenames in os.walk('/kaggle/input'):
     for filename in filenames:
@@ -127,7 +130,7 @@ page = pdf_document[0]
 pixmap = page.get_pixmap()
 image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
 image.save('decision_tree_gini.png')
-image.show()
+# image.show()
 print("Results for Gini Criterion:")
 display_evaluation_results(model_gini, X_test, y_test)
 
@@ -154,7 +157,7 @@ page2 = pdf_document[0]
 pixmap2 = page2.get_pixmap()
 image2 = Image.frombytes("RGB", [pixmap2.width, pixmap2.height], pixmap2.samples)
 image2.save('decision_tree_entropy.png')
-image2.show()
+# image2.show()
 print("Results for Entropy Criterion:")
 display_evaluation_results(model_entropy, X_test, y_test)
 
@@ -183,7 +186,7 @@ page3 = pdf_document[0]
 pixmap3 = page3.get_pixmap()
 image3 = Image.frombytes("RGB", [pixmap3.width, pixmap3.height], pixmap3.samples)
 image3.save('decision_tree_misclassification.png')
-image3.show()
+# image3.show()
 print("Results for Misclassification Criterion:")
 display_evaluation_results(model_misclassification, X_test, y_test)
 
@@ -229,6 +232,182 @@ def plot_confusion_matrix(conf_matrix, kernel_name):
     plt.ylabel("Actual")
     plt.title(f"Confusion Matrix - {kernel_name} Kernel")
     plt.show()
-plot_confusion_matrix(confusion_matrix(y_test, y_pred_linear), "Linear")
-plot_confusion_matrix(confusion_matrix(y_test, y_pred_poly), "Polynomial")
-plot_confusion_matrix(confusion_matrix(y_test, y_pred_rbf), "RBF")
+# plot_confusion_matrix(confusion_matrix(y_test, y_pred_linear), "Linear")
+# plot_confusion_matrix(confusion_matrix(y_test, y_pred_poly), "Polynomial")
+# plot_confusion_matrix(confusion_matrix(y_test, y_pred_rbf), "RBF")
+
+# K-mean algoritm
+
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+num_clusters = range(2, 11)
+sse_values = []
+cluster_centers_values = []
+cluster_members_count = []
+
+for n_clusters in num_clusters:
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42 , n_init=10)
+    kmeans.fit(X_train_scaled)
+    # SSE
+    sse_values.append(kmeans.inertia_)
+    # مقادیر ویژگی‌های مراکز خوشه
+    cluster_centers_values.append(kmeans.cluster_centers_)
+    # تعداد اعضای هر خوشه
+    cluster_members_count.append(np.bincount(kmeans.labels_))
+
+table_data = pd.DataFrame({
+    'Num Clusters': num_clusters,
+    'SSE': sse_values,
+    'Cluster Centers Values': cluster_centers_values,
+    'Cluster Members Count': cluster_members_count
+})
+print(table_data)
+num_clusters = range(2, 11)
+# نمایش الگوریتم K-Means بر روی داده‌ها برای هر تعداد خوشه
+fig, axes = plt.subplots(3, 3, figsize=(15, 15))
+axes = axes.flatten()
+for i, n_clusters in enumerate(num_clusters):
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42 , n_init=10)
+    kmeans.fit(X_train_scaled)
+    # نمایش نقاط داده به همراه مراکز خوشه
+    axes[i].scatter(X_train_scaled.iloc[:, 0], X_train_scaled.iloc[:, 1], c=kmeans.labels_, cmap='viridis', s=50)
+    axes[i].scatter(kmeans.cluster_centers_[:, 0], kmeans.cluster_centers_[:, 1], marker='X', s=200, color='red')
+    axes[i].set_title(f'Num Clusters = {n_clusters}')
+plt.tight_layout()
+plt.show()
+# ترسیم نمودار خط SSE
+plt.figure(figsize=(10, 6))
+plt.plot(num_clusters, sse_values, marker='o')
+plt.title('Elbow Method for Optimal Number of Clusters')
+plt.xlabel('Number of Clusters')
+plt.ylabel('SSE (Sum of Squared Errors)')
+plt.show()
+
+# DBSCAN algoritm
+
+features = df.drop(columns=['Outcome Variable'], axis=1)
+label_encoder = LabelEncoder()
+for column in features.columns:
+    if features[column].dtype == np.object_:
+        features[column] = label_encoder.fit_transform(features[column])
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(features)
+
+for n_clusters in range(2, 11):
+    dbscan = DBSCAN(eps=1.5, min_samples=5)
+    labels = dbscan.fit_predict(X_scaled)
+    df[f'Cluster Labels ({n_clusters} Clusters)'] = labels
+# print(df)
+plt.figure(figsize=(15, 3))
+for n_clusters in range(2, 11):
+    plt.subplot(2, 5, n_clusters - 1)
+    plt.scatter(X_scaled[:, 0], X_scaled[:, 1], c=df[f'Cluster Labels ({n_clusters} Clusters)'], cmap='viridis', s=50)
+    plt.title(f'DBSCAN Clustering - {n_clusters} Clusters')
+plt.tight_layout()
+plt.show()
+
+# fuzzy
+
+# import skfuzzy as fuzz
+# num_clusters_fuzzy = range(2, 11)
+# sse_values_fuzzy = []
+# cluster_info_fuzzy = []
+# for n_clusters in num_clusters_fuzzy:
+#     cntr, u, u0, d, jm, p, fpc = fuzz.cluster.cmeans(X_train_scaled.T, n_clusters, 2, error=0.005, maxiter=1000 , n_init=10 )
+#     centers = cntr.T
+#     print(f'Centers for {n_clusters} Clusters:\n{centers}\n')
+#     sse_values_fuzzy.append(np.sum((X_train_scaled - centers[np.argmax(u, axis=0)]) ** 2))
+#     cluster_info_fuzzy.append({
+#         'Number of Clusters': n_clusters,
+#         'Cluster Centers': centers,
+#         'Membership Matrix': u,
+#         'FPC': fpc
+#     })
+# table_data_fuzzy = pd.DataFrame(cluster_info_fuzzy)
+# table_data_fuzzy['SSE'] = sse_values_fuzzy
+# print(table_data_fuzzy)
+
+print("------------------------------------------------------------------------------------------------------")
+
+from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
+# ایجاد یک تابع برای محاسبه و نمایش معیارهای ارزیابی
+def calculate_and_display_metrics(y_true, y_pred, algorithm_name):
+    accuracy = accuracy_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
+    precision = precision_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+    metrics_dict = {
+        'Algorithm': algorithm_name,
+        'Accuracy': accuracy,
+        'Recall': recall,
+        'Precision': precision,
+        'F1-Score': f1
+    }
+    return metrics_dict
+metrics_results = []
+# Decision Tree with Gini
+y_pred_gini = model_gini.predict(X_test)
+metrics_gini = calculate_and_display_metrics(y_test, y_pred_gini, 'Decision Tree (Gini)')
+metrics_results.append(metrics_gini)
+# Decision Tree with Entropy
+y_pred_entropy = model_entropy.predict(X_test)
+metrics_entropy = calculate_and_display_metrics(y_test, y_pred_entropy, 'Decision Tree (Entropy)')
+metrics_results.append(metrics_entropy)
+# Decision Tree with Misclassification
+y_pred_misclassification = model_misclassification.predict(X_test)
+metrics_misclassification = calculate_and_display_metrics(y_test, y_pred_misclassification, 'Decision Tree (Misclassification)')
+metrics_results.append(metrics_misclassification)
+# SVM with Linear Kernel
+y_pred_linear = svm_linear.predict(X_test_scaled)
+metrics_svm_linear = calculate_and_display_metrics(y_test, y_pred_linear, 'SVM (Linear Kernel)')
+metrics_results.append(metrics_svm_linear)
+# SVM with Polynomial Kernel
+y_pred_poly = svm_poly.predict(X_test_scaled)
+metrics_svm_poly = calculate_and_display_metrics(y_test, y_pred_poly, 'SVM (Polynomial Kernel)')
+metrics_results.append(metrics_svm_poly)
+# SVM with RBF Kernel
+y_pred_rbf = svm_rbf.predict(X_test_scaled)
+metrics_svm_rbf = calculate_and_display_metrics(y_test, y_pred_rbf, 'SVM (RBF Kernel)')
+metrics_results.append(metrics_svm_rbf)
+# Display results in a table
+metrics_table = pd.DataFrame(metrics_results)
+print(metrics_table)
+
+
+
+# ROC 
+from sklearn.metrics import roc_curve, auc
+
+# تابع برای رسم نمودار ROC و محاسبه AUC
+def plot_roc_curve(y_true, y_probs, algorithm_name):
+    fpr, tpr, thresholds = roc_curve(y_true, y_probs)
+    roc_auc = auc(fpr, tpr)
+
+    plt.figure(figsize=(8, 8))
+    plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'{algorithm_name} (AUC = {roc_auc:.2f})')
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(f'ROC Curve - {algorithm_name}')
+    plt.legend(loc="lower right")
+    plt.show()
+# Decision Tree with Gini
+y_probs_gini = model_gini.predict_proba(X_test)[:, 1]
+plot_roc_curve(y_test, y_probs_gini, 'Decision Tree (Gini)')
+# Decision Tree with Entropy
+y_probs_entropy = model_entropy.predict_proba(X_test)[:, 1]
+plot_roc_curve(y_test, y_probs_entropy, 'Decision Tree (Entropy)')
+# Decision Tree with Misclassification
+y_probs_misclassification = model_misclassification.predict_proba(X_test)[:, 1]
+plot_roc_curve(y_test, y_probs_misclassification, 'Decision Tree (Misclassification)')
+# SVM with Linear Kernel
+y_probs_linear = svm_linear.decision_function(X_test_scaled)
+plot_roc_curve(y_test, y_probs_linear, 'SVM (Linear Kernel)')
+# SVM with Polynomial Kernel
+y_probs_poly = svm_poly.decision_function(X_test_scaled)
+plot_roc_curve(y_test, y_probs_poly, 'SVM (Polynomial Kernel)')
+# SVM with RBF Kernel
+y_probs_rbf = svm_rbf.decision_function(X_test_scaled)
+plot_roc_curve(y_test, y_probs_rbf, 'SVM (RBF Kernel)')
